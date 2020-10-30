@@ -6,6 +6,7 @@ namespace Library.Components.Tests
     using Internals;
     using MassTransit;
     using MassTransit.Context;
+    using MassTransit.ExtensionsDependencyInjectionIntegration;
     using MassTransit.Testing;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
@@ -39,6 +40,8 @@ namespace Library.Components.Tests
                     cfg.AddPublishMessageScheduler();
 
                     cfg.AddSagaStateMachineTestHarness<TStateMachine, TInstance>();
+
+                    ConfigureMassTransit(cfg);
                 });
 
             ConfigureServices(collection);
@@ -57,6 +60,10 @@ namespace Library.Components.Tests
 
             SagaHarness = Provider.GetRequiredService<IStateMachineSagaTestHarness<TInstance, TStateMachine>>();
             Machine = Provider.GetRequiredService<TStateMachine>();
+        }
+
+        protected virtual void ConfigureMassTransit(IServiceCollectionBusConfigurator configurator)
+        {
         }
 
         protected virtual void ConfigureServices(IServiceCollection collection)

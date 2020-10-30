@@ -14,6 +14,7 @@ namespace Library.Contracts
                 return;
 
             GlobalTopology.Send.UseCorrelationId<BookAdded>(x => x.BookId);
+            GlobalTopology.Send.UseCorrelationId<ReservationRequested>(x => x.ReservationId);
 
             _initialized = true;
         }

@@ -3,6 +3,7 @@ namespace Library.Components.StateMachines
     using Automatonymous;
     using Automatonymous.Binders;
     using Contracts;
+    using MassTransit;
 
 
     // ReSharper disable UnassignedGetOnlyAutoProperty MemberCanBePrivate.Global
@@ -16,17 +17,32 @@ namespace Library.Components.StateMachines
 
         public BookStateMachine()
         {
-            InstanceState(x => x.CurrentState, Available);
+            InstanceState(x => x.CurrentState, Available, Reserved);
+
+            Event(() => ReservationRequested, x => x.CorrelateById(m => m.Message.BookId));
 
             Initially(
                 When(Added)
                     .CopyDataToInstance()
                     .TransitionTo(Available));
+
+            During(Available,
+                When(ReservationRequested)
+                    .TransitionTo(Reserved)
+                    .PublishAsync(context => context.Init<BookReserved>(new
+                    {
+                        context.Data.ReservationId,
+                        context.Data.MemberId,
+                        context.Data.BookId,
+                        InVar.Timestamp
+                    })));
         }
 
         public Event<BookAdded> Added { get; }
+        public Event<ReservationRequested> ReservationRequested { get; }
 
         public State Available { get; }
+        public State Reserved { get; }
     }
 
 
