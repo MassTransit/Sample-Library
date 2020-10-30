@@ -17,6 +17,8 @@ namespace Library.Components.StateMachines
 
         public Guid BookId { get; set; }
 
+        public Guid? ExpirationTokenId { get; set; }
+
         public Guid CorrelationId { get; set; }
     }
 }
