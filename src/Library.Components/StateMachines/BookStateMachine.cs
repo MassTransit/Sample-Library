@@ -6,23 +6,22 @@ namespace Library.Components.StateMachines
 
 
     // ReSharper disable UnassignedGetOnlyAutoProperty MemberCanBePrivate.Global
-    public class BookStateMachine :
+    public sealed class BookStateMachine :
         MassTransitStateMachine<Book>
     {
+        static BookStateMachine()
+        {
+            MessageContracts.Initialize();
+        }
+
         public BookStateMachine()
         {
-            Event(() => Added, x => x.CorrelateById(m => m.Message.BookId));
-
             InstanceState(x => x.CurrentState, Available);
 
             Initially(
                 When(Added)
                     .CopyDataToInstance()
                     .TransitionTo(Available));
-
-            DuringAny(
-                When(Added)
-                    .CopyDataToInstance());
         }
 
         public Event<BookAdded> Added { get; }

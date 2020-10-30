@@ -4,6 +4,7 @@ namespace Library.Components.StateMachines
     using Automatonymous;
 
 
+    // ReSharper disable UnusedAutoPropertyAccessor.Global
     public class Book :
         SagaStateMachineInstance
     {
