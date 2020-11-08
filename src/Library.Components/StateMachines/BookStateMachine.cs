@@ -32,6 +32,7 @@ namespace Library.Components.StateMachines
                     {
                         context.Data.ReservationId,
                         context.Data.MemberId,
+                        context.Data.Duration,
                         context.Data.BookId,
                         InVar.Timestamp
                     }))
@@ -41,14 +42,21 @@ namespace Library.Components.StateMachines
             During(Reserved,
                 When(BookReservationCanceled)
                     .TransitionTo(Available));
+
+            During(Available, Reserved,
+                When(BookCheckedOut)
+                    .TransitionTo(CheckedOut)
+            );
         }
 
         public Event<BookAdded> Added { get; }
+        public Event<BookCheckedOut> BookCheckedOut { get; }
         public Event<BookReservationCanceled> BookReservationCanceled { get; }
         public Event<ReservationRequested> ReservationRequested { get; }
 
         public State Available { get; }
         public State Reserved { get; }
+        public State CheckedOut { get; }
     }
 
 

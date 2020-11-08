@@ -2,6 +2,7 @@ namespace Library.Components.StateMachines
 {
     using System;
     using Automatonymous;
+    using Automatonymous.Binders;
     using Contracts;
     using MassTransit;
 
@@ -17,9 +18,11 @@ namespace Library.Components.StateMachines
 
         public ReservationStateMachine()
         {
-            InstanceState(x => x.CurrentState, Requested, Expired);
+            InstanceState(x => x.CurrentState, Requested, Expired, Reserved);
 
             Event(() => BookReserved, x => x.CorrelateById(m => m.Message.ReservationId));
+
+            Event(() => BookCheckedOut, x => x.CorrelateBy((instance, context) => instance.BookId == context.Message.BookId));
 
             Schedule(() => ExpirationSchedule, x => x.ExpirationTokenId, x => x.Delay = TimeSpan.FromHours(24));
 
@@ -31,25 +34,33 @@ namespace Library.Components.StateMachines
                         context.Instance.BookId = context.Data.BookId;
                         context.Instance.MemberId = context.Data.MemberId;
                     })
-                    .TransitionTo(Requested)
+                    .TransitionTo(Requested),
+                When(ReservationExpired)
+                    .Finalize()
             );
 
             During(Requested,
                 When(BookReserved)
                     .Then(context => context.Instance.Reserved = context.Data.Timestamp)
-                    .Schedule(ExpirationSchedule, context => context.Init<ReservationExpired>(new {context.Data.ReservationId}))
+                    .Schedule(ExpirationSchedule, context => context.Init<ReservationExpired>(new {context.Data.ReservationId}),
+                        context => context.Data.Duration ?? TimeSpan.FromDays(1))
                     .TransitionTo(Reserved)
             );
 
             During(Reserved,
                 When(ReservationExpired)
-                    .PublishAsync(context => context.Init<BookReservationCanceled>(new
-                    {
-                        context.Data.ReservationId,
-                        context.Instance.BookId
-                    }))
+                    .PublishReservationCancelled()
+                    .Finalize(),
+                When(ReservationCancellationRequested)
+                    .PublishReservationCancelled()
+                    .Unschedule(ExpirationSchedule)
                     .Finalize()
             );
+
+            During(Reserved,
+                When(BookCheckedOut)
+                    .Unschedule(ExpirationSchedule)
+                    .Finalize());
 
             SetCompletedWhenFinalized();
         }
@@ -61,7 +72,23 @@ namespace Library.Components.StateMachines
         public Schedule<Reservation, ReservationExpired> ExpirationSchedule { get; }
 
         public Event<BookReserved> BookReserved { get; }
+        public Event<BookCheckedOut> BookCheckedOut { get; }
         public Event<ReservationRequested> ReservationRequested { get; }
+        public Event<ReservationCancellationRequested> ReservationCancellationRequested { get; }
         public Event<ReservationExpired> ReservationExpired { get; }
+    }
+
+
+    public static class ReservationStateMachineExtensions
+    {
+        public static EventActivityBinder<Reservation, T> PublishReservationCancelled<T>(this EventActivityBinder<Reservation, T> binder)
+            where T : class
+        {
+            return binder.PublishAsync(context => context.Init<BookReservationCanceled>(new
+            {
+                ReservationId = context.Instance.CorrelationId,
+                context.Instance.BookId
+            }));
+        }
     }
 }

@@ -3,13 +3,9 @@ namespace Library.Contracts
     using System;
 
 
-    public interface BookReserved
+    public interface BookCheckedOut
     {
-        Guid ReservationId { get; }
-
         DateTime Timestamp { get; }
-
-        TimeSpan? Duration { get; }
 
         Guid MemberId { get; }
 

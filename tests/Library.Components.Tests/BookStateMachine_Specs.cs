@@ -1,5 +1,6 @@
 namespace Library.Components.Tests
 {
+    using System;
     using System.Threading.Tasks;
     using Contracts;
     using MassTransit;
@@ -34,6 +35,36 @@ namespace Library.Components.Tests
 
             var existsId = await SagaHarness.Exists(bookId, x => x.Available);
             Assert.IsTrue(existsId.HasValue, "Saga did not exist");
+        }
+    }
+
+
+    public class When_a_book_is_checked_out :
+        StateMachineTestFixture<BookStateMachine, Book>
+    {
+        [Test]
+        public async Task Should_change_state_to_checked_out()
+        {
+            var bookId = NewId.NextGuid();
+
+            await TestHarness.Bus.Publish<BookAdded>(new
+            {
+                BookId = bookId,
+                Isbn = "0307969959",
+                Title = "Neuromancer"
+            });
+
+            var existsId = await SagaHarness.Exists(bookId, x => x.Available);
+            Assert.IsTrue(existsId.HasValue, "Saga did not exist");
+
+            await TestHarness.Bus.Publish<BookCheckedOut>(new
+            {
+                BookId = bookId,
+                InVar.Timestamp
+            });
+
+            existsId = await SagaHarness.Exists(bookId, x => x.CheckedOut);
+            Assert.IsTrue(existsId.HasValue, "Saga was not checked out");
         }
     }
 }
