@@ -5,6 +5,8 @@ namespace Library.Contracts
 
     public interface BookCheckedOut
     {
+        Guid CheckOutId { get; }
+
         DateTime Timestamp { get; }
 
         Guid MemberId { get; }
