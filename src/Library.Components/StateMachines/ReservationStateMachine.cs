@@ -35,6 +35,17 @@ namespace Library.Components.StateMachines
                         context.Instance.MemberId = context.Data.MemberId;
                     })
                     .TransitionTo(Requested),
+                When(BookReserved)
+                    .Then(context =>
+                    {
+                        context.Instance.Created = context.Data.Timestamp;
+                        context.Instance.BookId = context.Data.BookId;
+                        context.Instance.MemberId = context.Data.MemberId;
+                        context.Instance.Reserved = context.Data.Timestamp;
+                    })
+                    .Schedule(ExpirationSchedule, context => context.Init<ReservationExpired>(new {context.Data.ReservationId}),
+                        context => context.Data.Duration ?? TimeSpan.FromDays(1))
+                    .TransitionTo(Reserved),
                 When(ReservationExpired)
                     .Finalize()
             );
@@ -44,23 +55,25 @@ namespace Library.Components.StateMachines
                     .Then(context => context.Instance.Reserved = context.Data.Timestamp)
                     .Schedule(ExpirationSchedule, context => context.Init<ReservationExpired>(new {context.Data.ReservationId}),
                         context => context.Data.Duration ?? TimeSpan.FromDays(1))
-                    .TransitionTo(Reserved)
+                    .TransitionTo(Reserved),
+                Ignore(ReservationRequested)
             );
 
             During(Reserved,
+                When(BookReserved)
+                    .Schedule(ExpirationSchedule, context => context.Init<ReservationExpired>(new {context.Data.ReservationId}),
+                        context => context.Data.Duration ?? TimeSpan.FromDays(1)),
                 When(ReservationExpired)
                     .PublishReservationCancelled()
                     .Finalize(),
                 When(ReservationCancellationRequested)
                     .PublishReservationCancelled()
                     .Unschedule(ExpirationSchedule)
-                    .Finalize()
-            );
-
-            During(Reserved,
+                    .Finalize(),
                 When(BookCheckedOut)
                     .Unschedule(ExpirationSchedule)
-                    .Finalize());
+                    .Finalize(),
+                Ignore(ReservationRequested));
 
             SetCompletedWhenFinalized();
         }

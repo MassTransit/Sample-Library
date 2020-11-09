@@ -15,6 +15,8 @@ namespace Library.Components.StateMachines
         public string Title { get; set; }
         public string Isbn { get; set; }
 
+        public Guid? ReservationId { get; set; }
+
         public Guid CorrelationId { get; set; }
     }
 }

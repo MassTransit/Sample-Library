@@ -28,15 +28,15 @@ namespace Library.Components.StateMachines
 
             During(Available,
                 When(ReservationRequested)
-                    .PublishAsync(context => context.Init<BookReserved>(new
-                    {
-                        context.Data.ReservationId,
-                        context.Data.MemberId,
-                        context.Data.Duration,
-                        context.Data.BookId,
-                        InVar.Timestamp
-                    }))
+                    .Then(context => context.Instance.ReservationId = context.Data.ReservationId)
+                    .PublishBookReserved()
                     .TransitionTo(Reserved)
+            );
+
+            During(Reserved,
+                When(ReservationRequested)
+                    .If(context => context.Instance.ReservationId.HasValue && context.Instance.ReservationId.Value == context.Data.ReservationId,
+                        x => x.PublishBookReserved())
             );
 
             During(Reserved,
@@ -45,6 +45,7 @@ namespace Library.Components.StateMachines
 
             During(Available, Reserved,
                 When(BookCheckedOut)
+                    // .Then(context => context.Instance.ReservationId = default)
                     .TransitionTo(CheckedOut)
             );
         }
@@ -70,6 +71,18 @@ namespace Library.Components.StateMachines
                 x.Instance.Title = x.Data.Title;
                 x.Instance.Isbn = x.Data.Isbn;
             });
+        }
+
+        public static EventActivityBinder<Book, ReservationRequested> PublishBookReserved(this EventActivityBinder<Book, ReservationRequested> binder)
+        {
+            return binder.PublishAsync(context => context.Init<BookReserved>(new
+            {
+                context.Data.ReservationId,
+                context.Data.MemberId,
+                context.Data.Duration,
+                context.Data.BookId,
+                InVar.Timestamp
+            }));
         }
     }
 }
