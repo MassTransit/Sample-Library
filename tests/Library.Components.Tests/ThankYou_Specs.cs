@@ -29,13 +29,11 @@ namespace Library.Components.Tests
                 InVar.Timestamp
             });
 
-            Assert.IsTrue(await SagaHarness.Consumed.Any<BookReserved>(), "Message not consumed by saga");
+            Assert.IsTrue(await SagaHarness.Consumed.Any<BookReserved>(x => x.Context.Message.BookId == bookId), "Message not consumed by saga");
 
-            Assert.That(await SagaHarness.Created.Any(), "Saga not created");
+            Assert.That(await SagaHarness.Created.Any(x => x.Saga.BookId == bookId), "Saga not created");
 
-            ISagaInstance<ThankYou> instance = SagaHarness.Created.Select(x => true).First();
-
-            Console.WriteLine("Thank you status: {0}", instance.Saga.ThankYouStatus);
+            ISagaInstance<ThankYou> instance = SagaHarness.Created.Select(x => x.Saga.BookId == bookId).First();
 
             await TestHarness.Bus.Publish<BookCheckedOut>(new
             {
@@ -45,8 +43,7 @@ namespace Library.Components.Tests
                 InVar.Timestamp
             });
 
-            Assert.IsTrue(await SagaHarness.Consumed.Any<BookCheckedOut>(), "Message not consumed by saga");
-
+            Assert.IsTrue(await SagaHarness.Consumed.Any<BookCheckedOut>(x => x.Context.Message.BookId == bookId), "Message not consumed by saga");
 
             Guid? existsId = await SagaHarness.Exists(instance.Saga.CorrelationId, x => x.Ready);
             Assert.IsTrue(existsId.HasValue, "Saga did not transition to Ready");
@@ -67,13 +64,11 @@ namespace Library.Components.Tests
                 InVar.Timestamp
             });
 
-            Assert.IsTrue(await SagaHarness.Consumed.Any<BookCheckedOut>(), "Message not consumed by saga");
+            Assert.IsTrue(await SagaHarness.Consumed.Any<BookCheckedOut>(x => x.Context.Message.BookId == bookId), "Message not consumed by saga");
 
-            Assert.That(await SagaHarness.Created.Any(), "Saga not created");
+            Assert.That(await SagaHarness.Created.Any(x => x.Saga.BookId == bookId), "Saga not created");
 
-            ISagaInstance<ThankYou> instance = SagaHarness.Created.Select(x => true).First();
-
-            Console.WriteLine("Thank you status: {0}", instance.Saga.ThankYouStatus);
+            ISagaInstance<ThankYou> instance = SagaHarness.Created.Select(x => x.Saga.BookId == bookId).First();
 
             await TestHarness.Bus.Publish<BookReserved>(new
             {
@@ -84,8 +79,7 @@ namespace Library.Components.Tests
                 InVar.Timestamp
             });
 
-            Assert.IsTrue(await SagaHarness.Consumed.Any<BookReserved>(), "Message not consumed by saga");
-
+            Assert.IsTrue(await SagaHarness.Consumed.Any<BookReserved>(x => x.Context.Message.BookId == bookId), "Message not consumed by saga");
 
             Guid? existsId = await SagaHarness.Exists(instance.Saga.CorrelationId, x => x.Ready);
             Assert.IsTrue(existsId.HasValue, "Saga did not transition to Ready");
