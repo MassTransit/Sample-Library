@@ -1,0 +1,8 @@
+﻿version: '2.3'
+services:
+  postgres:
+    image: "postgres:9"
+    environment:
+      - "POSTGRES_PASSWORD=Password12!"
+    ports:
+      - 5432:5432

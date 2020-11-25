@@ -17,12 +17,25 @@ namespace Library.Components.StateMachines
             {
                 x.CorrelateBy((instance, context) => context.Message.BookId == instance.BookId && context.Message.MemberId == instance.MemberId)
                     .SelectId(context => context.MessageId ?? NewId.NextGuid());
+
+                x.InsertOnInitial = true;
             });
 
             Event(() => BookCheckedOut, x =>
             {
                 x.CorrelateBy((instance, context) => context.Message.BookId == instance.BookId && context.Message.MemberId == instance.MemberId)
                     .SelectId(context => context.MessageId ?? NewId.NextGuid());
+
+                x.InsertOnInitial = true;
+            });
+
+            Event(() => GetStatus, x =>
+            {
+                x.CorrelateBy((instance, context) => context.Message.MemberId == instance.MemberId);
+
+                x.ReadOnly = true;
+
+                x.OnMissingInstance(m => m.ExecuteAsync(context => context.RespondAsync<ThankYouStatus>(new {Status = "Not Found"})));
             });
 
             Initially(
@@ -43,7 +56,6 @@ namespace Library.Components.StateMachines
                     })
                     .TransitionTo(Active)
             );
-
             During(Active,
                 When(BookReserved)
                     .Then(context =>
@@ -52,6 +64,15 @@ namespace Library.Components.StateMachines
                     }),
                 Ignore(BookCheckedOut)
             );
+
+            DuringAny(
+                When(GetStatus)
+                    .RespondAsync(context => context.Init<ThankYouStatus>(new
+                    {
+                        context.Instance.MemberId,
+                        context.Instance.BookId,
+                        Status = ((StateMachine<ThankYou>)this).Accessor.Get(context)
+                    })));
 
             CompositeEvent(() => ReadyToThank, x => x.ThankYouStatus, CompositeEventOptions.IncludeInitial, BookReserved, BookCheckedOut);
 
@@ -64,6 +85,7 @@ namespace Library.Components.StateMachines
         public State Ready { get; }
         public Event<BookReserved> BookReserved { get; }
         public Event<BookCheckedOut> BookCheckedOut { get; }
+        public Event<GetThankYouStatus> GetStatus { get; }
 
         public Event ReadyToThank { get; }
     }
