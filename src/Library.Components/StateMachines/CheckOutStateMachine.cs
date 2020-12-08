@@ -19,6 +19,12 @@ namespace Library.Components.StateMachines
         {
             Event(() => BookCheckedOut, x => x.CorrelateById(m => m.Message.CheckOutId));
 
+            Event(() => AddedToCollection, x => x.CorrelateBy((instance, context) =>
+                instance.BookId == context.Message.BookId && instance.MemberId == context.Message.MemberId));
+
+            Event(() => AddToCollectionFaulted, x => x.CorrelateBy((instance, context) =>
+                instance.BookId == context.Message.Message.BookId && instance.MemberId == context.Message.Message.MemberId));
+
             Event(() => RenewCheckOutRequested, x => x.OnMissingInstance(m => m.ExecuteAsync(a => a.RespondAsync<CheckOutNotFound>(a.Message))));
 
             InstanceState(x => x.CurrentState, CheckedOut);
@@ -33,6 +39,11 @@ namespace Library.Components.StateMachines
                         context.Instance.DueDate = context.Instance.CheckOutDate + settings.CheckOutDuration;
                     })
                     .Activity(x => x.OfInstanceType<NotifyMemberActivity>())
+                    .PublishAsync(x => x.Init<AddBookToMemberCollection>(new
+                    {
+                        x.Instance.MemberId,
+                        x.Instance.BookId
+                    }))
                     .TransitionTo(CheckedOut));
 
             During(CheckedOut,
@@ -57,10 +68,24 @@ namespace Library.Components.StateMachines
                                 context.Instance.DueDate
                             })))
             );
+
+            DuringAny(When(AddedToCollection)
+                .Then(context =>
+                {
+                }));
+
+            DuringAny(When(AddToCollectionFaulted)
+                .Then(context =>
+                {
+                    Console.WriteLine("Add to collection faulted");
+                }));
         }
 
         public Event<BookCheckedOut> BookCheckedOut { get; }
         public Event<RenewCheckOut> RenewCheckOutRequested { get; }
+
+        public Event<BookAddedToMemberCollection> AddedToCollection { get; }
+        public Event<Fault<AddBookToMemberCollection>> AddToCollectionFaulted { get; }
 
         public State CheckedOut { get; }
     }

@@ -2,6 +2,7 @@ namespace Library.Components.Tests
 {
     using System;
     using System.Threading.Tasks;
+    using Consumers;
     using Contracts;
     using MassTransit;
     using MassTransit.ExtensionsDependencyInjectionIntegration;
@@ -223,6 +224,128 @@ namespace Library.Components.Tests
         {
             public TimeSpan CheckOutDuration => TimeSpan.FromDays(14);
             public TimeSpan CheckOutDurationLimit => TimeSpan.FromDays(13);
+        }
+    }
+
+
+    public class When_a_book_is_checked_out_by_a_member :
+        StateMachineTestFixture<CheckOutStateMachine, CheckOut>
+    {
+        [Test]
+        public async Task Should_add_the_book_to_the_member_collection()
+        {
+            var bookId = NewId.NextGuid();
+            var checkOutId = NewId.NextGuid();
+            var memberId = NewId.NextGuid();
+
+            await TestHarness.Bus.Publish<BookCheckedOut>(new
+            {
+                CheckOutId = checkOutId,
+                BookId = bookId,
+                InVar.Timestamp,
+                MemberId = memberId
+            });
+
+            var existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
+            Assert.IsTrue(existsId.HasValue, "Saga did not exist");
+
+            Assert.IsTrue(await TestHarness.Published.Any<AddBookToMemberCollection>(), "Add to collection not published");
+
+            Assert.IsTrue(await TestHarness.Consumed.Any<AddBookToMemberCollection>(), "Add not consumed");
+
+            Assert.IsTrue(await TestHarness.Published.Any<BookAddedToMemberCollection>(), "Add not consumed");
+
+            Assert.IsTrue(await TestHarness.Consumed.Any<BookAddedToMemberCollection>(), "Add not consumed");
+        }
+
+        protected override void ConfigureServices(IServiceCollection collection)
+        {
+            collection.AddSingleton<CheckOutSettings, TestCheckOutSettings>();
+
+            collection.AddScoped<IMemberRegistry, AnyMemberIsValidMemberRegistry>();
+
+            base.ConfigureServices(collection);
+        }
+
+        protected override void ConfigureMassTransit(IServiceCollectionBusConfigurator configurator)
+        {
+            configurator.AddConsumer<MemberCollectionConsumer>();
+        }
+
+
+        class TestCheckOutSettings :
+            CheckOutSettings
+        {
+            public TimeSpan CheckOutDuration => TimeSpan.FromDays(14);
+
+            public TimeSpan CheckOutDurationLimit => TimeSpan.FromDays(30);
+        }
+    }
+
+
+    public class When_a_book_is_checked_out_by_a_member_with_fault :
+        StateMachineTestFixture<CheckOutStateMachine, CheckOut>
+    {
+        [Test]
+        public async Task Should_handle_the_fault_message_via_correlation()
+        {
+            var bookId = NewId.NextGuid();
+            var checkOutId = NewId.NextGuid();
+            var memberId = NewId.NextGuid();
+
+            await TestHarness.Bus.Publish<BookCheckedOut>(new
+            {
+                CheckOutId = checkOutId,
+                BookId = bookId,
+                InVar.Timestamp,
+                MemberId = memberId
+            });
+
+            var existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
+            Assert.IsTrue(existsId.HasValue, "Saga did not exist");
+
+            Assert.IsTrue(await TestHarness.Published.Any<AddBookToMemberCollection>(), "Add to collection not published");
+
+            Assert.IsTrue(await TestHarness.Consumed.Any<AddBookToMemberCollection>(), "Add not consumed");
+
+            Assert.IsTrue(await TestHarness.Published.Any<Fault<AddBookToMemberCollection>>(), "Fault not published");
+
+            Assert.IsTrue(await TestHarness.Consumed.Any<Fault<AddBookToMemberCollection>>(), "Fault not consumed");
+        }
+
+        protected override void ConfigureServices(IServiceCollection collection)
+        {
+            collection.AddSingleton<CheckOutSettings, TestCheckOutSettings>();
+
+            collection.AddScoped<IMemberRegistry, AnyMemberIsValidMemberRegistry>();
+
+            base.ConfigureServices(collection);
+        }
+
+        protected override void ConfigureMassTransit(IServiceCollectionBusConfigurator configurator)
+        {
+            configurator.AddConsumer<BadMemberCollectionConsumer>();
+        }
+
+
+        class BadMemberCollectionConsumer :
+            IConsumer<AddBookToMemberCollection>
+        {
+            public async Task Consume(ConsumeContext<AddBookToMemberCollection> context)
+            {
+                await Task.Delay(1000);
+
+                throw new InvalidOperationException("The member is overdrawn");
+            }
+        }
+
+
+        class TestCheckOutSettings :
+            CheckOutSettings
+        {
+            public TimeSpan CheckOutDuration => TimeSpan.FromDays(14);
+
+            public TimeSpan CheckOutDurationLimit => TimeSpan.FromDays(30);
         }
     }
 }
