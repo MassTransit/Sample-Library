@@ -34,6 +34,8 @@ namespace Library.Components.Tests
                 .AddSingleton<ILoggerFactory>(provider => new TestOutputLoggerFactory(true))
                 .AddMassTransitInMemoryTestHarness(cfg =>
                 {
+                    cfg.SetKebabCaseEndpointNameFormatter();
+
                     cfg.AddSagaStateMachine<TStateMachine, TInstance>()
                         .InMemoryRepository();
 
