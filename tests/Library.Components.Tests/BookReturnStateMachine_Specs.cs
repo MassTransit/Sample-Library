@@ -5,8 +5,6 @@ namespace Library.Components.Tests
     using Consumers;
     using Contracts;
     using MassTransit;
-    using MassTransit.Definition;
-    using MassTransit.ExtensionsDependencyInjectionIntegration;
     using NUnit.Framework;
     using StateMachines;
 
@@ -42,7 +40,7 @@ namespace Library.Components.Tests
             Assert.IsTrue(await TestHarness.Consumed.Any<FineCharged>(), "Fine charged");
         }
 
-        protected override void ConfigureMassTransit(IServiceCollectionBusConfigurator configurator)
+        protected override void ConfigureMassTransit(IBusRegistrationConfigurator configurator)
         {
             configurator.AddConsumer<ChargeFineConsumer>();
         }
@@ -80,7 +78,7 @@ namespace Library.Components.Tests
             Assert.IsTrue(await TestHarness.Consumed.Any<Fault<ChargeMemberFine>>(), "Fine charged");
         }
 
-        protected override void ConfigureMassTransit(IServiceCollectionBusConfigurator configurator)
+        protected override void ConfigureMassTransit(IBusRegistrationConfigurator configurator)
         {
             configurator.AddConsumer<BadChargeFineConsumer>()
                 .Endpoint(x => x.Name = KebabCaseEndpointNameFormatter.Instance.Consumer<ChargeFineConsumer>());

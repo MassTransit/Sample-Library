@@ -1,6 +1,5 @@
 namespace Library.Components.StateMachines
 {
-    using Automatonymous;
     using Contracts;
     using MassTransit;
 
@@ -35,43 +34,50 @@ namespace Library.Components.StateMachines
 
                 x.ReadOnly = true;
 
-                x.OnMissingInstance(m => m.ExecuteAsync(context => context.RespondAsync<ThankYouStatus>(new {Status = "Not Found"})));
+                x.OnMissingInstance(m => m.ExecuteAsync(context => context.RespondAsync<ThankYouStatus>(new { Status = "Not Found" })));
             });
 
             Initially(
                 When(BookReserved)
                     .Then(context =>
                     {
-                        context.Instance.BookId = context.Data.BookId;
-                        context.Instance.MemberId = context.Data.MemberId;
+                        context.Saga.BookId = context.Message.BookId;
+                        context.Saga.MemberId = context.Message.MemberId;
 
-                        context.Instance.ReservationId = context.Data.ReservationId;
+                        context.Saga.ReservationId = context.Message.ReservationId;
                     })
                     .TransitionTo(Active),
                 When(BookCheckedOut)
                     .Then(context =>
                     {
-                        context.Instance.BookId = context.Data.BookId;
-                        context.Instance.MemberId = context.Data.MemberId;
+                        context.Saga.BookId = context.Message.BookId;
+                        context.Saga.MemberId = context.Message.MemberId;
                     })
                     .TransitionTo(Active)
             );
+
             During(Active,
                 When(BookReserved)
                     .Then(context =>
                     {
-                        context.Instance.ReservationId = context.Data.ReservationId;
+                        context.Saga.ReservationId = context.Message.ReservationId;
                     }),
                 Ignore(BookCheckedOut)
             );
 
             DuringAny(
                 When(GetStatus)
+                    .ThenAsync(async context =>
+                    {
+                        State<ThankYou> state = await context.StateMachine.Accessor.Get(context);
+
+                        var text = state.ToString();
+                    })
                     .RespondAsync(context => context.Init<ThankYouStatus>(new
                     {
-                        context.Instance.MemberId,
-                        context.Instance.BookId,
-                        Status = ((StateMachine<ThankYou>)this).Accessor.Get(context)
+                        context.Saga.MemberId,
+                        context.Saga.BookId,
+                        Status = context.StateMachine.Accessor.Get(context)
                     })));
 
             CompositeEvent(() => ReadyToThank, x => x.ThankYouStatus, CompositeEventOptions.IncludeInitial, BookReserved, BookCheckedOut);

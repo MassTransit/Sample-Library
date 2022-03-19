@@ -5,7 +5,6 @@ namespace Library.Integration.Tests
     using Components.StateMachines;
     using Contracts;
     using MassTransit;
-    using MassTransit.Saga;
     using MassTransit.Testing;
     using Microsoft.Extensions.DependencyInjection;
     using NUnit.Framework;
@@ -111,11 +110,11 @@ namespace Library.Integration.Tests
             Guid? existsId = await repository.ShouldContainSagaInState(sagaId, Machine, x => x.Active, TestHarness.TestTimeout);
             Assert.IsTrue(existsId.HasValue, "Saga was not created using the MessageId");
 
-            var client = TestHarness.Bus.CreateRequestClient<GetThankYouStatus>();
+            IRequestClient<GetThankYouStatus> client = TestHarness.GetRequestClient<GetThankYouStatus>();
 
-            var response = await client.GetResponse<ThankYouStatus>(new {memberId});
+            Response<ThankYouStatus> response = await client.GetResponse<ThankYouStatus>(new { memberId });
 
-            Assert.That(response.Message.Status, Is.EqualTo("Active (State)"));
+            Assert.That(response.Message.Status, Is.EqualTo("Active"));
 
             existsId = await repository.ShouldContainSagaInState(sagaId, Machine, x => x.Active, TestHarness.TestTimeout);
             Assert.IsTrue(existsId.HasValue, "Saga was not created using the MessageId");
@@ -133,9 +132,9 @@ namespace Library.Integration.Tests
             existsId = await repository.ShouldContainSagaInState(sagaId, Machine, x => x.Ready, TestHarness.TestTimeout);
             Assert.IsTrue(existsId.HasValue, "Saga did not transition to Ready");
 
-            response = await client.GetResponse<ThankYouStatus>(new {memberId});
+            response = await client.GetResponse<ThankYouStatus>(new { memberId });
 
-            Assert.That(response.Message.Status, Is.EqualTo("Ready (State)"));
+            Assert.That(response.Message.Status, Is.EqualTo("Ready"));
         }
     }
 }

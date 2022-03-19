@@ -1,7 +1,6 @@
 namespace Library.Components.StateMachines
 {
     using System;
-    using Automatonymous;
     using Contracts;
     using MassTransit;
 
@@ -33,16 +32,16 @@ namespace Library.Components.StateMachines
                 When(BookCheckedOut)
                     .Then(context =>
                     {
-                        context.Instance.BookId = context.Data.BookId;
-                        context.Instance.MemberId = context.Data.MemberId;
-                        context.Instance.CheckOutDate = context.Data.Timestamp;
-                        context.Instance.DueDate = context.Instance.CheckOutDate + settings.CheckOutDuration;
+                        context.Saga.BookId = context.Message.BookId;
+                        context.Saga.MemberId = context.Message.MemberId;
+                        context.Saga.CheckOutDate = context.Message.Timestamp;
+                        context.Saga.DueDate = context.Saga.CheckOutDate + settings.CheckOutDuration;
                     })
                     .Activity(x => x.OfInstanceType<NotifyMemberActivity>())
                     .PublishAsync(x => x.Init<AddBookToMemberCollection>(new
                     {
-                        x.Instance.MemberId,
-                        x.Instance.BookId
+                        x.Saga.MemberId,
+                        x.Saga.BookId
                     }))
                     .TransitionTo(CheckedOut));
 
@@ -50,22 +49,22 @@ namespace Library.Components.StateMachines
                 When(RenewCheckOutRequested)
                     .Then(context =>
                     {
-                        context.Instance.DueDate = DateTime.UtcNow + settings.CheckOutDuration;
+                        context.Saga.DueDate = DateTime.UtcNow + settings.CheckOutDuration;
                     })
-                    .IfElse(context => context.Instance.DueDate > context.Instance.CheckOutDate + settings.CheckOutDurationLimit,
+                    .IfElse(context => context.Saga.DueDate > context.Saga.CheckOutDate + settings.CheckOutDurationLimit,
                         exceeded => exceeded
-                            .Then(context => context.Instance.DueDate = context.Instance.CheckOutDate + settings.CheckOutDurationLimit)
+                            .Then(context => context.Saga.DueDate = context.Saga.CheckOutDate + settings.CheckOutDurationLimit)
                             .RespondAsync(context => context.Init<CheckOutDurationLimitReached>(new
                             {
-                                context.Data.CheckOutId,
-                                context.Instance.DueDate
+                                context.Message.CheckOutId,
+                                context.Saga.DueDate
                             })),
                         otherwise => otherwise
                             .Activity(x => x.OfInstanceType<NotifyMemberActivity>())
                             .RespondAsync(context => context.Init<CheckOutRenewed>(new
                             {
-                                context.Data.CheckOutId,
-                                context.Instance.DueDate
+                                context.Message.CheckOutId,
+                                context.Saga.DueDate
                             })))
             );
 

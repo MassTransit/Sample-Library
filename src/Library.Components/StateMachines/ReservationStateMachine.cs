@@ -1,8 +1,6 @@
 namespace Library.Components.StateMachines
 {
     using System;
-    using Automatonymous;
-    using Automatonymous.Binders;
     using Contracts;
     using MassTransit;
 
@@ -30,21 +28,21 @@ namespace Library.Components.StateMachines
                 When(ReservationRequested)
                     .Then(context =>
                     {
-                        context.Instance.Created = context.Data.Timestamp;
-                        context.Instance.BookId = context.Data.BookId;
-                        context.Instance.MemberId = context.Data.MemberId;
+                        context.Saga.Created = context.Message.Timestamp;
+                        context.Saga.BookId = context.Message.BookId;
+                        context.Saga.MemberId = context.Message.MemberId;
                     })
                     .TransitionTo(Requested),
                 When(BookReserved)
                     .Then(context =>
                     {
-                        context.Instance.Created = context.Data.Timestamp;
-                        context.Instance.BookId = context.Data.BookId;
-                        context.Instance.MemberId = context.Data.MemberId;
-                        context.Instance.Reserved = context.Data.Timestamp;
+                        context.Saga.Created = context.Message.Timestamp;
+                        context.Saga.BookId = context.Message.BookId;
+                        context.Saga.MemberId = context.Message.MemberId;
+                        context.Saga.Reserved = context.Message.Timestamp;
                     })
-                    .Schedule(ExpirationSchedule, context => context.Init<ReservationExpired>(new {context.Data.ReservationId}),
-                        context => context.Data.Duration ?? TimeSpan.FromDays(1))
+                    .Schedule(ExpirationSchedule, context => context.Init<ReservationExpired>(new { context.Message.ReservationId }),
+                        context => context.Message.Duration ?? TimeSpan.FromDays(1))
                     .TransitionTo(Reserved),
                 When(ReservationExpired)
                     .Finalize()
@@ -52,17 +50,17 @@ namespace Library.Components.StateMachines
 
             During(Requested,
                 When(BookReserved)
-                    .Then(context => context.Instance.Reserved = context.Data.Timestamp)
-                    .Schedule(ExpirationSchedule, context => context.Init<ReservationExpired>(new {context.Data.ReservationId}),
-                        context => context.Data.Duration ?? TimeSpan.FromDays(1))
+                    .Then(context => context.Saga.Reserved = context.Message.Timestamp)
+                    .Schedule(ExpirationSchedule, context => context.Init<ReservationExpired>(new { context.Message.ReservationId }),
+                        context => context.Message.Duration ?? TimeSpan.FromDays(1))
                     .TransitionTo(Reserved),
                 Ignore(ReservationRequested)
             );
 
             During(Reserved,
                 When(BookReserved)
-                    .Schedule(ExpirationSchedule, context => context.Init<ReservationExpired>(new {context.Data.ReservationId}),
-                        context => context.Data.Duration ?? TimeSpan.FromDays(1)),
+                    .Schedule(ExpirationSchedule, context => context.Init<ReservationExpired>(new { context.Message.ReservationId }),
+                        context => context.Message.Duration ?? TimeSpan.FromDays(1)),
                 When(ReservationExpired)
                     .PublishReservationCancelled()
                     .Finalize(),
@@ -99,8 +97,8 @@ namespace Library.Components.StateMachines
         {
             return binder.PublishAsync(context => context.Init<BookReservationCanceled>(new
             {
-                ReservationId = context.Instance.CorrelationId,
-                context.Instance.BookId
+                ReservationId = context.Saga.CorrelationId,
+                context.Saga.BookId
             }));
         }
     }

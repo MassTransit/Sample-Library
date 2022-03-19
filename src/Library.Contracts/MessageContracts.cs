@@ -1,7 +1,6 @@
 namespace Library.Contracts
 {
     using MassTransit;
-    using MassTransit.Topology.Topologies;
 
 
     public static class MessageContracts

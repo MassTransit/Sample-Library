@@ -1,7 +1,6 @@
 namespace Library.Components.StateMachines
 {
     using System;
-    using Automatonymous;
     using Consumers;
     using Contracts;
     using MassTransit;
@@ -34,16 +33,16 @@ namespace Library.Components.StateMachines
                 When(BookReturned)
                     .Then(context =>
                     {
-                        context.Instance.BookId = context.Data.BookId;
-                        context.Instance.MemberId = context.Data.MemberId;
-                        context.Instance.CheckOutDate = context.Data.Timestamp;
-                        context.Instance.DueDate = context.Data.DueDate;
-                        context.Instance.ReturnDate = context.Data.ReturnDate;
+                        context.Saga.BookId = context.Message.BookId;
+                        context.Saga.MemberId = context.Message.MemberId;
+                        context.Saga.CheckOutDate = context.Message.Timestamp;
+                        context.Saga.DueDate = context.Message.DueDate;
+                        context.Saga.ReturnDate = context.Message.ReturnDate;
                     })
-                    .IfElse(context => context.Instance.ReturnDate > context.Instance.DueDate,
+                    .IfElse(context => context.Saga.ReturnDate > context.Saga.DueDate,
                         late => late.Request(ChargeFine, context => context.Init<ChargeMemberFine>(new
                         {
-                            context.Instance.MemberId,
+                            context.Saga.MemberId,
                             Amount = 123.45m
                         })).TransitionTo(ChargingFine),
                         onTime => onTime.TransitionTo(Complete)));

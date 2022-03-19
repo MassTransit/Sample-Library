@@ -2,11 +2,8 @@ namespace Library.Components.Tests
 {
     using System;
     using System.Threading.Tasks;
-    using Automatonymous;
     using Internals;
     using MassTransit;
-    using MassTransit.Context;
-    using MassTransit.ExtensionsDependencyInjectionIntegration;
     using MassTransit.Testing;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
@@ -22,8 +19,8 @@ namespace Library.Components.Tests
         TimeSpan _testOffset;
         protected TStateMachine Machine;
         protected ServiceProvider Provider;
-        protected IStateMachineSagaTestHarness<TInstance, TStateMachine> SagaHarness;
-        protected InMemoryTestHarness TestHarness;
+        protected ISagaStateMachineTestHarness<TStateMachine, TInstance> SagaHarness;
+        protected ITestHarness TestHarness;
 
         [OneTimeSetUp]
         public async Task Setup()
@@ -32,18 +29,23 @@ namespace Library.Components.Tests
 
             var collection = new ServiceCollection()
                 .AddSingleton<ILoggerFactory>(provider => new TestOutputLoggerFactory(true))
-                .AddMassTransitInMemoryTestHarness(cfg =>
+                .AddMassTransitTestHarness(x =>
                 {
-                    cfg.SetKebabCaseEndpointNameFormatter();
+                    x.SetKebabCaseEndpointNameFormatter();
 
-                    cfg.AddSagaStateMachine<TStateMachine, TInstance>()
+                    x.AddSagaStateMachine<TStateMachine, TInstance>()
                         .InMemoryRepository();
 
-                    cfg.AddPublishMessageScheduler();
+                    x.AddPublishMessageScheduler();
 
-                    cfg.AddSagaStateMachineTestHarness<TStateMachine, TInstance>();
+                    ConfigureMassTransit(x);
 
-                    ConfigureMassTransit(cfg);
+                    x.UsingInMemory((context, cfg) =>
+                    {
+                        cfg.UseInMemoryScheduler(out _scheduler);
+
+                        cfg.ConfigureEndpoints(context);
+                    });
                 });
 
             ConfigureServices(collection);
@@ -52,19 +54,15 @@ namespace Library.Components.Tests
 
             ConfigureLogging();
 
-            TestHarness = Provider.GetRequiredService<InMemoryTestHarness>();
-            TestHarness.OnConfigureInMemoryBus += configurator =>
-            {
-                configurator.UseInMemoryScheduler(out _scheduler);
-            };
+            TestHarness = Provider.GetTestHarness();
 
             await TestHarness.Start();
 
-            SagaHarness = Provider.GetRequiredService<IStateMachineSagaTestHarness<TInstance, TStateMachine>>();
-            Machine = Provider.GetRequiredService<TStateMachine>();
+            SagaHarness = TestHarness.GetSagaStateMachineHarness<TStateMachine, TInstance>();
+            Machine = SagaHarness.StateMachine;
         }
 
-        protected virtual void ConfigureMassTransit(IServiceCollectionBusConfigurator configurator)
+        protected virtual void ConfigureMassTransit(IBusRegistrationConfigurator configurator)
         {
         }
 
@@ -75,14 +73,7 @@ namespace Library.Components.Tests
         [OneTimeTearDown]
         public async Task Teardown()
         {
-            try
-            {
-                await TestHarness.Stop();
-            }
-            finally
-            {
-                await Provider.DisposeAsync();
-            }
+            await Provider.DisposeAsync();
 
             RestoreDefaultQuartzSystemTime();
         }

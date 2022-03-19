@@ -1,7 +1,5 @@
 namespace Library.Components.StateMachines
 {
-    using Automatonymous;
-    using Automatonymous.Binders;
     using Contracts;
     using MassTransit;
 
@@ -28,14 +26,14 @@ namespace Library.Components.StateMachines
 
             During(Available,
                 When(ReservationRequested)
-                    .Then(context => context.Instance.ReservationId = context.Data.ReservationId)
+                    .Then(context => context.Saga.ReservationId = context.Message.ReservationId)
                     .PublishBookReserved()
                     .TransitionTo(Reserved)
             );
 
             During(Reserved,
                 When(ReservationRequested)
-                    .If(context => context.Instance.ReservationId.HasValue && context.Instance.ReservationId.Value == context.Data.ReservationId,
+                    .If(context => context.Saga.ReservationId.HasValue && context.Saga.ReservationId.Value == context.Message.ReservationId,
                         x => x.PublishBookReserved())
             );
 
@@ -45,7 +43,7 @@ namespace Library.Components.StateMachines
 
             During(Available, Reserved,
                 When(BookCheckedOut)
-                    // .Then(context => context.Instance.ReservationId = default)
+                    // .Then(context => context.Saga.ReservationId = default)
                     .TransitionTo(CheckedOut)
             );
         }
@@ -67,9 +65,9 @@ namespace Library.Components.StateMachines
         {
             return binder.Then(x =>
             {
-                x.Instance.DateAdded = x.Data.Timestamp.Date;
-                x.Instance.Title = x.Data.Title;
-                x.Instance.Isbn = x.Data.Isbn;
+                x.Saga.DateAdded = x.Message.Timestamp.Date;
+                x.Saga.Title = x.Message.Title;
+                x.Saga.Isbn = x.Message.Isbn;
             });
         }
 
@@ -77,10 +75,10 @@ namespace Library.Components.StateMachines
         {
             return binder.PublishAsync(context => context.Init<BookReserved>(new
             {
-                context.Data.ReservationId,
-                context.Data.MemberId,
-                context.Data.Duration,
-                context.Data.BookId,
+                context.Message.ReservationId,
+                context.Message.MemberId,
+                context.Message.Duration,
+                context.Message.BookId,
                 InVar.Timestamp
             }));
         }

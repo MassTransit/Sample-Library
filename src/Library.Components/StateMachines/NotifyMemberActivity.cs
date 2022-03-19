@@ -2,15 +2,13 @@ namespace Library.Components.StateMachines
 {
     using System;
     using System.Threading.Tasks;
-    using Automatonymous;
     using Contracts;
-    using GreenPipes;
     using MassTransit;
     using Services;
 
 
     public class NotifyMemberActivity :
-        Activity<CheckOut>
+        IStateMachineActivity<CheckOut>
     {
         readonly IMemberRegistry _memberRegistry;
 
@@ -29,35 +27,37 @@ namespace Library.Components.StateMachines
             visitor.Visit(this);
         }
 
-        public async Task Execute(BehaviorContext<CheckOut> context, Behavior<CheckOut> next)
+        public async Task Execute(BehaviorContext<CheckOut> context, IBehavior<CheckOut> next)
         {
             await Execute(context);
 
             await next.Execute(context);
         }
 
-        public async Task Execute<T>(BehaviorContext<CheckOut, T> context, Behavior<CheckOut, T> next)
+        public async Task Execute<T>(BehaviorContext<CheckOut, T> context, IBehavior<CheckOut, T> next)
+            where T : class
         {
             await Execute(context);
 
             await next.Execute(context);
         }
 
-        public Task Faulted<TException>(BehaviorExceptionContext<CheckOut, TException> context, Behavior<CheckOut> next)
+        public Task Faulted<TException>(BehaviorExceptionContext<CheckOut, TException> context, IBehavior<CheckOut> next)
             where TException : Exception
         {
             return next.Faulted(context);
         }
 
-        public Task Faulted<T, TException>(BehaviorExceptionContext<CheckOut, T, TException> context, Behavior<CheckOut, T> next)
+        public Task Faulted<T, TException>(BehaviorExceptionContext<CheckOut, T, TException> context, IBehavior<CheckOut, T> next)
             where TException : Exception
+            where T : class
         {
             return next.Faulted(context);
         }
 
         async Task Execute(BehaviorContext<CheckOut> context)
         {
-            var isValid = await _memberRegistry.IsMemberValid(context.Instance.MemberId);
+            var isValid = await _memberRegistry.IsMemberValid(context.Saga.MemberId);
             if (!isValid)
                 throw new InvalidOperationException("Invalid memberId");
 
@@ -65,8 +65,8 @@ namespace Library.Components.StateMachines
 
             await consumeContext.Publish<NotifyMemberDueDate>(new
             {
-                context.Instance.MemberId,
-                context.Instance.DueDate
+                context.Saga.MemberId,
+                context.Saga.DueDate
             });
         }
     }

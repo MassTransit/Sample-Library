@@ -33,7 +33,7 @@ namespace Library.Components.Tests
             var instance = SagaHarness.Created.ContainsInState(bookId, Machine, Machine.Available);
             Assert.IsNotNull(instance, "Saga instance not found");
 
-            var existsId = await SagaHarness.Exists(bookId, x => x.Available);
+            Guid? existsId = await SagaHarness.Exists(bookId, x => x.Available);
             Assert.IsTrue(existsId.HasValue, "Saga did not exist");
         }
     }
@@ -54,7 +54,7 @@ namespace Library.Components.Tests
                 Title = "Neuromancer"
             });
 
-            var existsId = await SagaHarness.Exists(bookId, x => x.Available);
+            Guid? existsId = await SagaHarness.Exists(bookId, x => x.Available);
             Assert.IsTrue(existsId.HasValue, "Saga did not exist");
 
             await TestHarness.Bus.Publish<BookCheckedOut>(new

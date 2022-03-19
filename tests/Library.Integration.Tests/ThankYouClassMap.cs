@@ -1,7 +1,7 @@
 namespace Library.Integration.Tests
 {
     using Components.StateMachines;
-    using MassTransit.EntityFrameworkCoreIntegration.Mappings;
+    using MassTransit;
     using Microsoft.EntityFrameworkCore;
     using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

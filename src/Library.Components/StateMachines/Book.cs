@@ -1,7 +1,7 @@
 namespace Library.Components.StateMachines
 {
     using System;
-    using Automatonymous;
+    using MassTransit;
 
 
     // ReSharper disable UnusedAutoPropertyAccessor.Global

@@ -2,7 +2,6 @@ namespace Library.Integration.Tests
 {
     using System.Collections.Generic;
     using MassTransit.EntityFrameworkCoreIntegration;
-    using MassTransit.EntityFrameworkCoreIntegration.Mappings;
     using Microsoft.EntityFrameworkCore;
 
 
@@ -14,6 +13,6 @@ namespace Library.Integration.Tests
         {
         }
 
-        protected override IEnumerable<ISagaClassMap> Configurations => new[] {new ThankYouClassMap()};
+        protected override IEnumerable<ISagaClassMap> Configurations => new[] { new ThankYouClassMap() };
     }
 }

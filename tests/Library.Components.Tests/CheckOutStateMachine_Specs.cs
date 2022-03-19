@@ -5,7 +5,6 @@ namespace Library.Components.Tests
     using Consumers;
     using Contracts;
     using MassTransit;
-    using MassTransit.ExtensionsDependencyInjectionIntegration;
     using MassTransit.Testing;
     using Microsoft.Extensions.DependencyInjection;
     using NUnit.Framework;
@@ -22,7 +21,7 @@ namespace Library.Components.Tests
             var bookId = NewId.NextGuid();
             var checkOutId = NewId.NextGuid();
 
-            DateTime now = DateTime.UtcNow;
+            var now = DateTime.UtcNow;
 
             await TestHarness.Bus.Publish<BookCheckedOut>(new
             {
@@ -43,7 +42,7 @@ namespace Library.Components.Tests
 
             Assert.That(instance.DueDate, Is.GreaterThanOrEqualTo(now + TimeSpan.FromDays(14)));
 
-            var existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
+            Guid? existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
             Assert.IsTrue(existsId.HasValue, "Saga did not exist");
 
             Assert.IsTrue(await TestHarness.Published.Any<NotifyMemberDueDate>(), "Due Date Event Not Published");
@@ -78,7 +77,7 @@ namespace Library.Components.Tests
             var bookId = NewId.NextGuid();
             var checkOutId = NewId.NextGuid();
 
-            DateTime now = DateTime.UtcNow;
+            var now = DateTime.UtcNow;
 
             await TestHarness.Bus.Publish<BookCheckedOut>(new
             {
@@ -88,24 +87,19 @@ namespace Library.Components.Tests
                 MemberId = NewId.NextGuid()
             });
 
-            var existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
+            Guid? existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
             Assert.IsTrue(existsId.HasValue, "Saga did not exist");
 
-            using var scope = Provider.CreateScope();
-
-            var requestClient = scope.ServiceProvider.GetRequiredService<IRequestClient<RenewCheckOut>>();
+            IRequestClient<RenewCheckOut> requestClient = TestHarness.GetRequestClient<RenewCheckOut>();
 
             now = DateTime.UtcNow;
 
-            var (renewed, notFound) = await requestClient.GetResponse<CheckOutRenewed, CheckOutNotFound>(new {checkOutId});
+            Response<CheckOutRenewed, CheckOutNotFound> response = await requestClient.GetResponse<CheckOutRenewed, CheckOutNotFound>(new { checkOutId });
 
-            if (renewed.IsCompletedSuccessfully)
-            {
-                var response = await renewed;
-                Assert.That(response.Message.DueDate, Is.GreaterThanOrEqualTo(now + TimeSpan.FromDays(14)));
-            }
+            if (response.Is(out Response<CheckOutRenewed> renewed))
+                Assert.That(renewed.Message.DueDate, Is.GreaterThanOrEqualTo(now + TimeSpan.FromDays(14)));
 
-            Assert.That(notFound.IsCompletedSuccessfully, Is.False);
+            Assert.That(response.Is(out Response<CheckOutNotFound> _), Is.False);
         }
 
         [Test]
@@ -113,18 +107,12 @@ namespace Library.Components.Tests
         {
             var checkOutId = NewId.NextGuid();
 
-            DateTime now = DateTime.UtcNow;
+            IRequestClient<RenewCheckOut> requestClient = TestHarness.GetRequestClient<RenewCheckOut>();
 
-            using var scope = Provider.CreateScope();
+            Response<CheckOutRenewed, CheckOutNotFound> response = await requestClient.GetResponse<CheckOutRenewed, CheckOutNotFound>(new { checkOutId });
 
-            var requestClient = scope.ServiceProvider.GetRequiredService<IRequestClient<RenewCheckOut>>();
-
-            now = DateTime.UtcNow;
-
-            var (renewed, notFound) = await requestClient.GetResponse<CheckOutRenewed, CheckOutNotFound>(new {checkOutId});
-
-            Assert.That(notFound.IsCompletedSuccessfully, Is.True);
-            Assert.That(renewed.IsCompletedSuccessfully, Is.False);
+            Assert.That(response.Is(out Response<CheckOutNotFound> _), Is.True);
+            Assert.That(response.Is(out Response<CheckOutRenewed> _), Is.False);
         }
 
         protected override void ConfigureServices(IServiceCollection collection)
@@ -136,7 +124,7 @@ namespace Library.Components.Tests
             base.ConfigureServices(collection);
         }
 
-        protected override void ConfigureMassTransit(IServiceCollectionBusConfigurator configurator)
+        protected override void ConfigureMassTransit(IBusRegistrationConfigurator configurator)
         {
             configurator.AddRequestClient<RenewCheckOut>();
 
@@ -162,8 +150,8 @@ namespace Library.Components.Tests
             var bookId = NewId.NextGuid();
             var checkOutId = NewId.NextGuid();
 
-            DateTime now = DateTime.UtcNow;
-            DateTime checkedOutAt = DateTime.UtcNow;
+            var now = DateTime.UtcNow;
+            var checkedOutAt = DateTime.UtcNow;
 
             await TestHarness.Bus.Publish<BookCheckedOut>(new
             {
@@ -173,33 +161,22 @@ namespace Library.Components.Tests
                 MemberId = NewId.NextGuid()
             });
 
-            var existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
+            Guid? existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
             Assert.IsTrue(existsId.HasValue, "Saga did not exist");
 
-            using var scope = Provider.CreateScope();
+            IRequestClient<RenewCheckOut> requestClient = TestHarness.GetRequestClient<RenewCheckOut>();
 
-            var requestClient = scope.ServiceProvider.GetRequiredService<IRequestClient<RenewCheckOut>>();
+            Response<CheckOutRenewed, CheckOutNotFound, CheckOutDurationLimitReached> response =
+                await requestClient.GetResponse<CheckOutRenewed, CheckOutNotFound, CheckOutDurationLimitReached>(new { checkOutId });
 
             now = DateTime.UtcNow;
 
-            using var request = requestClient.Create(new {checkOutId});
+            Assert.That(response.Is(out Response<CheckOutNotFound> _), Is.False);
+            Assert.That(response.Is(out Response<CheckOutRenewed> _), Is.False);
+            Assert.That(response.Is(out Response<CheckOutDurationLimitReached> limitReached), Is.True);
 
-            var renewed = request.GetResponse<CheckOutRenewed>(false);
-            var notFound = request.GetResponse<CheckOutNotFound>(false);
-            var limitReached = request.GetResponse<CheckOutDurationLimitReached>();
-
-            Task whenAny = await Task.WhenAny(renewed, notFound, limitReached);
-
-            Assert.That(notFound.IsCompletedSuccessfully, Is.False);
-            Assert.That(renewed.IsCompletedSuccessfully, Is.False);
-            Assert.That(limitReached.IsCompletedSuccessfully, Is.True);
-
-            if (limitReached.IsCompletedSuccessfully)
-            {
-                var response = await limitReached;
-                Assert.That(response.Message.DueDate, Is.LessThan(now + TimeSpan.FromDays(14)));
-                Assert.That(response.Message.DueDate, Is.GreaterThanOrEqualTo(checkedOutAt + TimeSpan.FromDays(13)));
-            }
+            Assert.That(limitReached.Message.DueDate, Is.LessThan(now + TimeSpan.FromDays(14)));
+            Assert.That(limitReached.Message.DueDate, Is.GreaterThanOrEqualTo(checkedOutAt + TimeSpan.FromDays(13)));
         }
 
         protected override void ConfigureServices(IServiceCollection collection)
@@ -211,7 +188,7 @@ namespace Library.Components.Tests
             base.ConfigureServices(collection);
         }
 
-        protected override void ConfigureMassTransit(IServiceCollectionBusConfigurator configurator)
+        protected override void ConfigureMassTransit(IBusRegistrationConfigurator configurator)
         {
             configurator.AddRequestClient<RenewCheckOut>();
 
@@ -246,7 +223,7 @@ namespace Library.Components.Tests
                 MemberId = memberId
             });
 
-            var existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
+            Guid? existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
             Assert.IsTrue(existsId.HasValue, "Saga did not exist");
 
             Assert.IsTrue(await TestHarness.Published.Any<AddBookToMemberCollection>(), "Add to collection not published");
@@ -267,7 +244,7 @@ namespace Library.Components.Tests
             base.ConfigureServices(collection);
         }
 
-        protected override void ConfigureMassTransit(IServiceCollectionBusConfigurator configurator)
+        protected override void ConfigureMassTransit(IBusRegistrationConfigurator configurator)
         {
             configurator.AddConsumer<MemberCollectionConsumer>();
         }
@@ -301,7 +278,7 @@ namespace Library.Components.Tests
                 MemberId = memberId
             });
 
-            var existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
+            Guid? existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
             Assert.IsTrue(existsId.HasValue, "Saga did not exist");
 
             Assert.IsTrue(await TestHarness.Published.Any<AddBookToMemberCollection>(), "Add to collection not published");
@@ -322,7 +299,7 @@ namespace Library.Components.Tests
             base.ConfigureServices(collection);
         }
 
-        protected override void ConfigureMassTransit(IServiceCollectionBusConfigurator configurator)
+        protected override void ConfigureMassTransit(IBusRegistrationConfigurator configurator)
         {
             configurator.AddConsumer<BadMemberCollectionConsumer>();
         }
