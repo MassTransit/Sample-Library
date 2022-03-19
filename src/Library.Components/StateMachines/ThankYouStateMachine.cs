@@ -37,6 +37,8 @@ namespace Library.Components.StateMachines
                 x.OnMissingInstance(m => m.ExecuteAsync(context => context.RespondAsync<ThankYouStatus>(new { Status = "Not Found" })));
             });
 
+            CompositeEvent(() => ReadyToThank, x => x.ThankYouStatus, CompositeEventOptions.IncludeInitial, BookReserved, BookCheckedOut);
+
             Initially(
                 When(BookReserved)
                     .Then(context =>
@@ -79,8 +81,6 @@ namespace Library.Components.StateMachines
                         context.Saga.BookId,
                         Status = context.StateMachine.Accessor.Get(context)
                     })));
-
-            CompositeEvent(() => ReadyToThank, x => x.ThankYouStatus, CompositeEventOptions.IncludeInitial, BookReserved, BookCheckedOut);
 
             DuringAny(
                 When(ReadyToThank)
