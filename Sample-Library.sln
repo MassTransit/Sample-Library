@@ -11,6 +11,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Library.Contracts", "src\Li
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Library.Integration.Tests", "tests\Library.Integration.Tests\Library.Integration.Tests.csproj", "{7679FD7A-1584-4579-ABCF-664DA5FC0133}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{597F4D76-F469-408D-9E1E-1863D508D1C6}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{685E5157-F445-4E99-9BF6-59CB72BDD96E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -74,5 +78,9 @@ Global
 		{7679FD7A-1584-4579-ABCF-664DA5FC0133}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{E94A9FE2-1455-4BA1-AEE8-8F7AA1941ED3} = {685E5157-F445-4E99-9BF6-59CB72BDD96E}
+		{1E9CCBB9-EF1C-4993-BF00-B90DCBF932DA} = {597F4D76-F469-408D-9E1E-1863D508D1C6}
+		{C5B5F038-995D-4466-8F8F-2D51751D133F} = {597F4D76-F469-408D-9E1E-1863D508D1C6}
+		{7679FD7A-1584-4579-ABCF-664DA5FC0133} = {685E5157-F445-4E99-9BF6-59CB72BDD96E}
 	EndGlobalSection
 EndGlobal

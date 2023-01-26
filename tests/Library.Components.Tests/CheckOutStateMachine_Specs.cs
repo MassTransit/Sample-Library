@@ -12,18 +12,30 @@ namespace Library.Components.Tests
     using StateMachines;
 
 
-    public class When_a_book_is_checked_out_checkout :
-        StateMachineTestFixture<CheckOutStateMachine, CheckOut>
+    public class When_a_book_is_checked_out_checkout
     {
         [Test]
         public async Task Should_create_a_saga_instance()
         {
+            await using var provider = new ServiceCollection()
+                .ConfigureMassTransit(x =>
+                {
+                    x.AddSingleton<CheckOutSettings, TestCheckOutSettings>();
+                    x.AddScoped<IMemberRegistry, AnyMemberIsValidMemberRegistry>();
+                    x.AddSagaStateMachine<CheckOutStateMachine, CheckOut>();
+                })
+                .BuildServiceProvider(true);
+
+            var harness = provider.GetTestHarness();
+
+            await harness.Start();
+
             var bookId = NewId.NextGuid();
             var checkOutId = NewId.NextGuid();
 
             var now = DateTime.UtcNow;
 
-            await TestHarness.Bus.Publish<BookCheckedOut>(new
+            await harness.Bus.Publish<BookCheckedOut>(new
             {
                 CheckOutId = checkOutId,
                 BookId = bookId,
@@ -31,30 +43,23 @@ namespace Library.Components.Tests
                 MemberId = NewId.NextGuid()
             });
 
-            Assert.IsTrue(await TestHarness.Consumed.Any<BookCheckedOut>(), "Message not consumed");
+            Assert.IsTrue(await harness.Consumed.Any<BookCheckedOut>(), "Message not consumed");
 
-            Assert.IsTrue(await SagaHarness.Consumed.Any<BookCheckedOut>(), "Message not consumed by saga");
+            var sagaHarness = harness.GetSagaStateMachineHarness<CheckOutStateMachine, CheckOut>();
 
-            Assert.That(await SagaHarness.Created.Any(x => x.CorrelationId == checkOutId));
+            Assert.IsTrue(await sagaHarness.Consumed.Any<BookCheckedOut>(), "Message not consumed by saga");
 
-            var instance = SagaHarness.Created.ContainsInState(checkOutId, Machine, Machine.CheckedOut);
+            Assert.That(await sagaHarness.Created.Any(x => x.CorrelationId == checkOutId));
+
+            var instance = sagaHarness.Created.ContainsInState(checkOutId, sagaHarness.StateMachine, sagaHarness.StateMachine.CheckedOut);
             Assert.IsNotNull(instance, "Saga instance not found");
 
             Assert.That(instance.DueDate, Is.GreaterThanOrEqualTo(now + TimeSpan.FromDays(14)));
 
-            Guid? existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
+            Guid? existsId = await sagaHarness.Exists(checkOutId, x => x.CheckedOut);
             Assert.IsTrue(existsId.HasValue, "Saga did not exist");
 
-            Assert.IsTrue(await TestHarness.Published.Any<NotifyMemberDueDate>(), "Due Date Event Not Published");
-        }
-
-        protected override void ConfigureServices(IServiceCollection collection)
-        {
-            collection.AddSingleton<CheckOutSettings, TestCheckOutSettings>();
-
-            collection.AddScoped<IMemberRegistry, AnyMemberIsValidMemberRegistry>();
-
-            base.ConfigureServices(collection);
+            Assert.IsTrue(await harness.Published.Any<NotifyMemberDueDate>(), "Due Date Event Not Published");
         }
 
 
@@ -62,24 +67,35 @@ namespace Library.Components.Tests
             CheckOutSettings
         {
             public TimeSpan CheckOutDuration => TimeSpan.FromDays(14);
-
             public TimeSpan CheckOutDurationLimit => TimeSpan.FromDays(30);
         }
     }
 
 
-    public class When_a_checkout_is_renewed :
-        StateMachineTestFixture<CheckOutStateMachine, CheckOut>
+    public class When_a_checkout_is_renewed
     {
         [Test]
         public async Task Should_renew_an_existing_checkout()
         {
+            await using var provider = new ServiceCollection()
+                .ConfigureMassTransit(x =>
+                {
+                    x.AddSingleton<CheckOutSettings, TestCheckOutSettings>();
+                    x.AddScoped<IMemberRegistry, AnyMemberIsValidMemberRegistry>();
+                    x.AddSagaStateMachine<CheckOutStateMachine, CheckOut>();
+                })
+                .BuildServiceProvider(true);
+
+            var harness = provider.GetTestHarness();
+
+            await harness.Start();
+
             var bookId = NewId.NextGuid();
             var checkOutId = NewId.NextGuid();
 
             var now = DateTime.UtcNow;
 
-            await TestHarness.Bus.Publish<BookCheckedOut>(new
+            await harness.Bus.Publish<BookCheckedOut>(new
             {
                 CheckOutId = checkOutId,
                 BookId = bookId,
@@ -87,10 +103,12 @@ namespace Library.Components.Tests
                 MemberId = NewId.NextGuid()
             });
 
-            Guid? existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
+            var sagaHarness = harness.GetSagaStateMachineHarness<CheckOutStateMachine, CheckOut>();
+
+            Guid? existsId = await sagaHarness.Exists(checkOutId, x => x.CheckedOut);
             Assert.IsTrue(existsId.HasValue, "Saga did not exist");
 
-            IRequestClient<RenewCheckOut> requestClient = TestHarness.GetRequestClient<RenewCheckOut>();
+            IRequestClient<RenewCheckOut> requestClient = harness.GetRequestClient<RenewCheckOut>();
 
             now = DateTime.UtcNow;
 
@@ -105,30 +123,27 @@ namespace Library.Components.Tests
         [Test]
         public async Task Should_not_complete_on_a_missing_checkout()
         {
+            await using var provider = new ServiceCollection()
+                .ConfigureMassTransit(x =>
+                {
+                    x.AddSingleton<CheckOutSettings, TestCheckOutSettings>();
+                    x.AddScoped<IMemberRegistry, AnyMemberIsValidMemberRegistry>();
+                    x.AddSagaStateMachine<CheckOutStateMachine, CheckOut>();
+                })
+                .BuildServiceProvider(true);
+
+            var harness = provider.GetTestHarness();
+
+            await harness.Start();
+
             var checkOutId = NewId.NextGuid();
 
-            IRequestClient<RenewCheckOut> requestClient = TestHarness.GetRequestClient<RenewCheckOut>();
+            IRequestClient<RenewCheckOut> requestClient = harness.GetRequestClient<RenewCheckOut>();
 
             Response<CheckOutRenewed, CheckOutNotFound> response = await requestClient.GetResponse<CheckOutRenewed, CheckOutNotFound>(new { checkOutId });
 
             Assert.That(response.Is(out Response<CheckOutNotFound> _), Is.True);
             Assert.That(response.Is(out Response<CheckOutRenewed> _), Is.False);
-        }
-
-        protected override void ConfigureServices(IServiceCollection collection)
-        {
-            collection.AddSingleton<CheckOutSettings, TestCheckOutSettings>();
-
-            collection.AddScoped<IMemberRegistry, AnyMemberIsValidMemberRegistry>();
-
-            base.ConfigureServices(collection);
-        }
-
-        protected override void ConfigureMassTransit(IBusRegistrationConfigurator configurator)
-        {
-            configurator.AddRequestClient<RenewCheckOut>();
-
-            base.ConfigureMassTransit(configurator);
         }
 
 
@@ -141,19 +156,31 @@ namespace Library.Components.Tests
     }
 
 
-    public class When_a_checkout_is_renewed_past_the_limit :
-        StateMachineTestFixture<CheckOutStateMachine, CheckOut>
+    public class When_a_checkout_is_renewed_past_the_limit
     {
         [Test]
         public async Task Should_renew_an_existing_checkout_up_to_the_limit()
         {
+            await using var provider = new ServiceCollection()
+                .ConfigureMassTransit(x =>
+                {
+                    x.AddSingleton<CheckOutSettings, TestCheckOutSettings>();
+                    x.AddScoped<IMemberRegistry, AnyMemberIsValidMemberRegistry>();
+                    x.AddSagaStateMachine<CheckOutStateMachine, CheckOut>();
+                })
+                .BuildServiceProvider(true);
+
+            var harness = provider.GetTestHarness();
+
+            await harness.Start();
+
             var bookId = NewId.NextGuid();
             var checkOutId = NewId.NextGuid();
 
             var now = DateTime.UtcNow;
             var checkedOutAt = DateTime.UtcNow;
 
-            await TestHarness.Bus.Publish<BookCheckedOut>(new
+            await harness.Bus.Publish<BookCheckedOut>(new
             {
                 CheckOutId = checkOutId,
                 BookId = bookId,
@@ -161,10 +188,12 @@ namespace Library.Components.Tests
                 MemberId = NewId.NextGuid()
             });
 
-            Guid? existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
+            var sagaHarness = harness.GetSagaStateMachineHarness<CheckOutStateMachine, CheckOut>();
+
+            Guid? existsId = await sagaHarness.Exists(checkOutId, x => x.CheckedOut);
             Assert.IsTrue(existsId.HasValue, "Saga did not exist");
 
-            IRequestClient<RenewCheckOut> requestClient = TestHarness.GetRequestClient<RenewCheckOut>();
+            IRequestClient<RenewCheckOut> requestClient = harness.GetRequestClient<RenewCheckOut>();
 
             Response<CheckOutRenewed, CheckOutNotFound, CheckOutDurationLimitReached> response =
                 await requestClient.GetResponse<CheckOutRenewed, CheckOutNotFound, CheckOutDurationLimitReached>(new { checkOutId });
@@ -179,22 +208,6 @@ namespace Library.Components.Tests
             Assert.That(limitReached.Message.DueDate, Is.GreaterThanOrEqualTo(checkedOutAt + TimeSpan.FromDays(13)));
         }
 
-        protected override void ConfigureServices(IServiceCollection collection)
-        {
-            collection.AddSingleton<CheckOutSettings, TestCheckOutSettings>();
-
-            collection.AddScoped<IMemberRegistry, AnyMemberIsValidMemberRegistry>();
-
-            base.ConfigureServices(collection);
-        }
-
-        protected override void ConfigureMassTransit(IBusRegistrationConfigurator configurator)
-        {
-            configurator.AddRequestClient<RenewCheckOut>();
-
-            base.ConfigureMassTransit(configurator);
-        }
-
 
         class TestCheckOutSettings :
             CheckOutSettings
@@ -205,17 +218,30 @@ namespace Library.Components.Tests
     }
 
 
-    public class When_a_book_is_checked_out_by_a_member :
-        StateMachineTestFixture<CheckOutStateMachine, CheckOut>
+    public class When_a_book_is_checked_out_by_a_member
     {
         [Test]
         public async Task Should_add_the_book_to_the_member_collection()
         {
+            await using var provider = new ServiceCollection()
+                .ConfigureMassTransit(x =>
+                {
+                    x.AddSingleton<CheckOutSettings, TestCheckOutSettings>();
+                    x.AddScoped<IMemberRegistry, AnyMemberIsValidMemberRegistry>();
+                    x.AddConsumer<MemberCollectionConsumer>();
+                    x.AddSagaStateMachine<CheckOutStateMachine, CheckOut>();
+                })
+                .BuildServiceProvider(true);
+
+            var harness = provider.GetTestHarness();
+
+            await harness.Start();
+
             var bookId = NewId.NextGuid();
             var checkOutId = NewId.NextGuid();
             var memberId = NewId.NextGuid();
 
-            await TestHarness.Bus.Publish<BookCheckedOut>(new
+            await harness.Bus.Publish<BookCheckedOut>(new
             {
                 CheckOutId = checkOutId,
                 BookId = bookId,
@@ -223,30 +249,18 @@ namespace Library.Components.Tests
                 MemberId = memberId
             });
 
-            Guid? existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
+            var sagaHarness = harness.GetSagaStateMachineHarness<CheckOutStateMachine, CheckOut>();
+
+            Guid? existsId = await sagaHarness.Exists(checkOutId, x => x.CheckedOut);
             Assert.IsTrue(existsId.HasValue, "Saga did not exist");
 
-            Assert.IsTrue(await TestHarness.Published.Any<AddBookToMemberCollection>(), "Add to collection not published");
+            Assert.IsTrue(await harness.Published.Any<AddBookToMemberCollection>(), "Add to collection not published");
 
-            Assert.IsTrue(await TestHarness.Consumed.Any<AddBookToMemberCollection>(), "Add not consumed");
+            Assert.IsTrue(await harness.Consumed.Any<AddBookToMemberCollection>(), "Add not consumed");
 
-            Assert.IsTrue(await TestHarness.Published.Any<BookAddedToMemberCollection>(), "Add not consumed");
+            Assert.IsTrue(await harness.Published.Any<BookAddedToMemberCollection>(), "Add not consumed");
 
-            Assert.IsTrue(await TestHarness.Consumed.Any<BookAddedToMemberCollection>(), "Add not consumed");
-        }
-
-        protected override void ConfigureServices(IServiceCollection collection)
-        {
-            collection.AddSingleton<CheckOutSettings, TestCheckOutSettings>();
-
-            collection.AddScoped<IMemberRegistry, AnyMemberIsValidMemberRegistry>();
-
-            base.ConfigureServices(collection);
-        }
-
-        protected override void ConfigureMassTransit(IBusRegistrationConfigurator configurator)
-        {
-            configurator.AddConsumer<MemberCollectionConsumer>();
+            Assert.IsTrue(await harness.Consumed.Any<BookAddedToMemberCollection>(), "Add not consumed");
         }
 
 
@@ -260,17 +274,30 @@ namespace Library.Components.Tests
     }
 
 
-    public class When_a_book_is_checked_out_by_a_member_with_fault :
-        StateMachineTestFixture<CheckOutStateMachine, CheckOut>
+    public class When_a_book_is_checked_out_by_a_member_with_fault
     {
         [Test]
         public async Task Should_handle_the_fault_message_via_correlation()
         {
+            await using var provider = new ServiceCollection()
+                .ConfigureMassTransit(x =>
+                {
+                    x.AddSingleton<CheckOutSettings, TestCheckOutSettings>();
+                    x.AddScoped<IMemberRegistry, AnyMemberIsValidMemberRegistry>();
+                    x.AddConsumer<BadMemberCollectionConsumer>();
+                    x.AddSagaStateMachine<CheckOutStateMachine, CheckOut>();
+                })
+                .BuildServiceProvider(true);
+
+            var harness = provider.GetTestHarness();
+
+            await harness.Start();
+
             var bookId = NewId.NextGuid();
             var checkOutId = NewId.NextGuid();
             var memberId = NewId.NextGuid();
 
-            await TestHarness.Bus.Publish<BookCheckedOut>(new
+            await harness.Bus.Publish<BookCheckedOut>(new
             {
                 CheckOutId = checkOutId,
                 BookId = bookId,
@@ -278,30 +305,18 @@ namespace Library.Components.Tests
                 MemberId = memberId
             });
 
-            Guid? existsId = await SagaHarness.Exists(checkOutId, x => x.CheckedOut);
+            var sagaHarness = harness.GetSagaStateMachineHarness<CheckOutStateMachine, CheckOut>();
+
+            Guid? existsId = await sagaHarness.Exists(checkOutId, x => x.CheckedOut);
             Assert.IsTrue(existsId.HasValue, "Saga did not exist");
 
-            Assert.IsTrue(await TestHarness.Published.Any<AddBookToMemberCollection>(), "Add to collection not published");
+            Assert.IsTrue(await harness.Published.Any<AddBookToMemberCollection>(), "Add to collection not published");
 
-            Assert.IsTrue(await TestHarness.Consumed.Any<AddBookToMemberCollection>(), "Add not consumed");
+            Assert.IsTrue(await harness.Consumed.Any<AddBookToMemberCollection>(), "Add not consumed");
 
-            Assert.IsTrue(await TestHarness.Published.Any<Fault<AddBookToMemberCollection>>(), "Fault not published");
+            Assert.IsTrue(await harness.Published.Any<Fault<AddBookToMemberCollection>>(), "Fault not published");
 
-            Assert.IsTrue(await TestHarness.Consumed.Any<Fault<AddBookToMemberCollection>>(), "Fault not consumed");
-        }
-
-        protected override void ConfigureServices(IServiceCollection collection)
-        {
-            collection.AddSingleton<CheckOutSettings, TestCheckOutSettings>();
-
-            collection.AddScoped<IMemberRegistry, AnyMemberIsValidMemberRegistry>();
-
-            base.ConfigureServices(collection);
-        }
-
-        protected override void ConfigureMassTransit(IBusRegistrationConfigurator configurator)
-        {
-            configurator.AddConsumer<BadMemberCollectionConsumer>();
+            Assert.IsTrue(await harness.Consumed.Any<Fault<AddBookToMemberCollection>>(), "Fault not consumed");
         }
 
 

@@ -10,19 +10,31 @@ namespace Library.Integration.Tests
     using NUnit.Framework;
 
 
-    public class When_a_book_is_checked_out_via_reservation :
-        StateMachineTestFixture<ThankYouStateMachine, ThankYou>
+    public class When_a_book_is_checked_out_via_reservation
     {
         [Test]
         public async Task Should_handle_in_order()
         {
+            await using var provider = new ServiceCollection()
+                .ConfigureMassTransit(x =>
+                {
+                    x.AddSagaStateMachine<ThankYouStateMachine, ThankYou>();
+                })
+                .BuildServiceProvider(true);
+
+            var harness = provider.GetTestHarness();
+
+            await harness.Start();
+
+            var sagaHarness = harness.GetSagaStateMachineHarness<ThankYouStateMachine, ThankYou>();
+
             var sagaId = NewId.NextGuid();
 
             var reservationId = NewId.NextGuid();
             var bookId = NewId.NextGuid();
             var memberId = NewId.NextGuid();
 
-            await TestHarness.Bus.Publish<BookReserved>(new
+            await harness.Bus.Publish<BookReserved>(new
             {
                 bookId,
                 memberId,
@@ -32,12 +44,12 @@ namespace Library.Integration.Tests
                 __MessageId = sagaId
             });
 
-            var repository = Provider.GetRequiredService<ISagaRepository<ThankYou>>();
+            var repository = provider.GetRequiredService<ISagaRepository<ThankYou>>();
 
-            Guid? existsId = await repository.ShouldContainSagaInState(sagaId, Machine, x => x.Active, TestHarness.TestTimeout);
+            Guid? existsId = await repository.ShouldContainSagaInState(sagaId, sagaHarness.StateMachine, x => x.Active, harness.TestTimeout);
             Assert.IsTrue(existsId.HasValue, "Saga was not created using the MessageId");
 
-            await TestHarness.Bus.Publish<BookCheckedOut>(new
+            await harness.Bus.Publish<BookCheckedOut>(new
             {
                 CheckOutId = InVar.Id,
                 bookId,
@@ -46,20 +58,33 @@ namespace Library.Integration.Tests
                 __MessageId = sagaId
             });
 
-            existsId = await repository.ShouldContainSagaInState(sagaId, Machine, x => x.Ready, TestHarness.TestTimeout);
+            existsId = await repository.ShouldContainSagaInState(sagaId, sagaHarness.StateMachine, x => x.Ready, harness.TestTimeout);
             Assert.IsTrue(existsId.HasValue, "Saga did not transition to Ready");
         }
 
         [Test]
         public async Task Should_handle_in_other_order()
         {
+            await using var provider = new ServiceCollection()
+                .ConfigureMassTransit(x =>
+                {
+                    x.AddSagaStateMachine<ThankYouStateMachine, ThankYou>();
+                })
+                .BuildServiceProvider(true);
+
+            var harness = provider.GetTestHarness();
+
+            await harness.Start();
+
+            var sagaHarness = harness.GetSagaStateMachineHarness<ThankYouStateMachine, ThankYou>();
+
             var sagaId = NewId.NextGuid();
 
             var reservationId = NewId.NextGuid();
             var bookId = NewId.NextGuid();
             var memberId = NewId.NextGuid();
 
-            await TestHarness.Bus.Publish<BookCheckedOut>(new
+            await harness.Bus.Publish<BookCheckedOut>(new
             {
                 CheckOutId = InVar.Id,
                 bookId,
@@ -68,12 +93,12 @@ namespace Library.Integration.Tests
                 __MessageId = sagaId
             });
 
-            var repository = Provider.GetRequiredService<ISagaRepository<ThankYou>>();
+            var repository = provider.GetRequiredService<ISagaRepository<ThankYou>>();
 
-            Guid? existsId = await repository.ShouldContainSagaInState(sagaId, Machine, x => x.Active, TestHarness.TestTimeout);
+            Guid? existsId = await repository.ShouldContainSagaInState(sagaId, sagaHarness.StateMachine, x => x.Active, harness.TestTimeout);
             Assert.IsTrue(existsId.HasValue, "Saga was not created using the MessageId");
 
-            await TestHarness.Bus.Publish<BookReserved>(new
+            await harness.Bus.Publish<BookReserved>(new
             {
                 bookId,
                 memberId,
@@ -83,20 +108,33 @@ namespace Library.Integration.Tests
                 __MessageId = sagaId
             });
 
-            existsId = await repository.ShouldContainSagaInState(sagaId, Machine, x => x.Ready, TestHarness.TestTimeout);
+            existsId = await repository.ShouldContainSagaInState(sagaId, sagaHarness.StateMachine, x => x.Ready, harness.TestTimeout);
             Assert.IsTrue(existsId.HasValue, "Saga did not transition to Ready");
         }
 
         [Test]
         public async Task Should_handle_status_checks()
         {
+            await using var provider = new ServiceCollection()
+                .ConfigureMassTransit(x =>
+                {
+                    x.AddSagaStateMachine<ThankYouStateMachine, ThankYou>();
+                })
+                .BuildServiceProvider(true);
+
+            var harness = provider.GetTestHarness();
+
+            await harness.Start();
+
+            var sagaHarness = harness.GetSagaStateMachineHarness<ThankYouStateMachine, ThankYou>();
+
             var sagaId = NewId.NextGuid();
 
             var reservationId = NewId.NextGuid();
             var bookId = NewId.NextGuid();
             var memberId = NewId.NextGuid();
 
-            await TestHarness.Bus.Publish<BookCheckedOut>(new
+            await harness.Bus.Publish<BookCheckedOut>(new
             {
                 CheckOutId = InVar.Id,
                 bookId,
@@ -105,21 +143,21 @@ namespace Library.Integration.Tests
                 __MessageId = sagaId
             });
 
-            var repository = Provider.GetRequiredService<ISagaRepository<ThankYou>>();
+            var repository = provider.GetRequiredService<ISagaRepository<ThankYou>>();
 
-            Guid? existsId = await repository.ShouldContainSagaInState(sagaId, Machine, x => x.Active, TestHarness.TestTimeout);
+            Guid? existsId = await repository.ShouldContainSagaInState(sagaId, sagaHarness.StateMachine, x => x.Active, harness.TestTimeout);
             Assert.IsTrue(existsId.HasValue, "Saga was not created using the MessageId");
 
-            IRequestClient<GetThankYouStatus> client = TestHarness.GetRequestClient<GetThankYouStatus>();
+            IRequestClient<GetThankYouStatus> client = harness.GetRequestClient<GetThankYouStatus>();
 
             Response<ThankYouStatus> response = await client.GetResponse<ThankYouStatus>(new { memberId });
 
             Assert.That(response.Message.Status, Is.EqualTo("Active"));
 
-            existsId = await repository.ShouldContainSagaInState(sagaId, Machine, x => x.Active, TestHarness.TestTimeout);
+            existsId = await repository.ShouldContainSagaInState(sagaId, sagaHarness.StateMachine, x => x.Active, harness.TestTimeout);
             Assert.IsTrue(existsId.HasValue, "Saga was not created using the MessageId");
 
-            await TestHarness.Bus.Publish<BookReserved>(new
+            await harness.Bus.Publish<BookReserved>(new
             {
                 bookId,
                 memberId,
@@ -129,7 +167,7 @@ namespace Library.Integration.Tests
                 __MessageId = sagaId
             });
 
-            existsId = await repository.ShouldContainSagaInState(sagaId, Machine, x => x.Ready, TestHarness.TestTimeout);
+            existsId = await repository.ShouldContainSagaInState(sagaId, sagaHarness.StateMachine, x => x.Ready, harness.TestTimeout);
             Assert.IsTrue(existsId.HasValue, "Saga did not transition to Ready");
 
             response = await client.GetResponse<ThankYouStatus>(new { memberId });
