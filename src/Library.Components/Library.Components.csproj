@@ -5,11 +5,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MassTransit" Version="8.0.10"/>
+    <PackageReference Include="MassTransit" Version="8.1.0-develop.1327" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Library.Contracts\Library.Contracts.csproj"/>
+    <ProjectReference Include="..\Library.Contracts\Library.Contracts.csproj" />
   </ItemGroup>
 
 </Project>
